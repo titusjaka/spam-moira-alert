@@ -17,17 +17,26 @@ var (
 )
 
 type spamConfig struct {
-	Nodes    int    `yaml:"nodes"`
-	Metrics  int    `yaml:"metrics"`
-	Interval string `yaml:"interval"`
-	Address  string `yaml:"address"`
-	Prefix   string `yaml:"prefix"`
-	Values   int    `yaml:"values"`
+	Nodes      int      `yaml:"nodes"`
+	Metrics    int      `yaml:"metrics"`
+	Interval   string   `yaml:"interval"`
+	Address    string   `yaml:"address"`
+	MainPrefix string   `yaml:"main_prefix"`
+	Prefixes   []string `yaml:"prefixes"`
+	Values     int      `yaml:"values"`
 }
 
 func (conf *spamConfig) String() string {
-	return fmt.Sprintf("Nodes: %d\nMetrics: %d\nInterval: %s\nAddress: %s\nPrefix: %s\n",
-		conf.Nodes, conf.Metrics, conf.Interval, conf.Address, conf.Prefix)
+	prefixes := ""
+	for i, pr := range conf.Prefixes {
+		if i != 0 {
+			prefixes += fmt.Sprintf(", %s", pr)
+		} else {
+			prefixes += fmt.Sprintf("%s", pr)
+		}
+	}
+	return fmt.Sprintf("Nodes: %d\nMetrics: %d\nInterval: %s\nAddress: %s\nMainPrefix: %s\nPrefixes: %s\n",
+		conf.Nodes, conf.Metrics, conf.Interval, conf.Address, conf.MainPrefix, prefixes)
 }
 
 func main() {
@@ -38,20 +47,16 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Can't read settings: %v\n", err)
 		os.Exit(1)
+	} else {
+		fmt.Printf("Config:\n=====\n%s", config.String())
 	}
 
 	rand.Seed(time.Now().Unix())
 	c := graphigo.Client{
 		Address: config.Address,
 		Timeout: 0,
-		Prefix:  config.Prefix,
+		Prefix:  config.MainPrefix,
 	}
-
-	if err := c.Connect(); err != nil {
-		panic(err)
-	}
-
-	defer c.Close()
 
 	ticker := time.NewTicker(to.Duration(config.Interval))
 	oldInterval := config.Interval
@@ -59,9 +64,8 @@ func main() {
 	for {
 		select {
 		case y := <-ticker.C:
-			sendMetrics(c, y, config.Nodes, config.Metrics, config.Values)
+			sendMetrics(c, y, config.Nodes, config.Metrics, config.Values, config.Prefixes)
 		case <-configTicker.C:
-
 			cmd.ReadConfig(*configFileName, &config)
 			if oldInterval != config.Interval {
 				fmt.Printf("New config interval: %s\n", config.Interval)
@@ -73,13 +77,15 @@ func main() {
 	}
 }
 
-func sendMetrics(c graphigo.Client, y time.Time, nodesCount, metricsCount, values int) {
+func sendMetrics(c graphigo.Client, y time.Time, nodesCount, metricsCount, values int, prefixes []string) {
 	var metrics = make([]graphigo.Metric, 0)
-	for i := 0; i < nodesCount; i++ {
-		for j := 0; j < metricsCount; j++ {
-			name := fmt.Sprintf("Metric_%v.%v", i, j)
-			value := rand.Int() % values
-			metrics = append(metrics, graphigo.Metric{Name: name, Value: value})
+	for _, prefix := range prefixes {
+		for i := 0; i < nodesCount; i++ {
+			for j := 0; j < metricsCount; j++ {
+				name := fmt.Sprintf("Metric_%v.%v", i, j)
+				value := rand.Int() % values
+				metrics = append(metrics, graphigo.Metric{Name: prefix + "." + name, Value: value})
+			}
 		}
 	}
 	c.SendAll(metrics)

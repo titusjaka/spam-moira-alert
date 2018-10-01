@@ -1,6 +1,11 @@
 nodes: 100
-metrics: 10
-interval: "30s"
+metrics: 100
+interval: 30s
 values: 110
-address: "localhost:2003"
-prefix: "Test.Metrics"
+address: localhost:2003
+main_prefix: Test
+prefixes:
+  - NODATA.Protection
+  - Titusov.Throttling
+  - Kamaev.NODATA
+  - DevOps.Moira.Hate
