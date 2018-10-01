@@ -58,6 +58,13 @@ func main() {
 		Prefix:  config.MainPrefix,
 	}
 
+	err = c.Connect()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer c.Close()
+
 	ticker := time.NewTicker(to.Duration(config.Interval))
 	oldInterval := config.Interval
 	configTicker := time.NewTicker(time.Second * 1)
